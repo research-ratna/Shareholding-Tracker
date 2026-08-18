@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xbrl xmlns:test="http://example.com/test-taxonomy">
+  <context id="Shareholder_1_D20250401">
+    <entity><identifier>TESTCO</identifier></entity>
+  </context>
+  <context id="Shareholder_2_D20250401">
+    <entity><identifier>TESTCO</identifier></entity>
+  </context>
+
+  <test:CategoryOfShareholder contextRef="Shareholder_1_D20250401">Public-Institution (Domestic) : Alternate Investment Funds</test:CategoryOfShareholder>
+  <test:NameOfTheShareholders contextRef="Shareholder_1_D20250401">Test Investor Trust</test:NameOfTheShareholders>
+  <test:NumberOfFullyPaidUpEquityShares contextRef="Shareholder_1_D20250401">500000</test:NumberOfFullyPaidUpEquityShares>
+  <test:ShareholdingAsAPercentageOfTotalNumberOfShares contextRef="Shareholder_1_D20250401">1.25</test:ShareholdingAsAPercentageOfTotalNumberOfShares>
+  <test:NumberOfVotingRights contextRef="Shareholder_1_D20250401">500000</test:NumberOfVotingRights>
+
+  <test:CategoryOfShareholder contextRef="Shareholder_2_D20250401">Public-Non-Institution : Bodies Corporate</test:CategoryOfShareholder>
+  <test:NameOfTheShareholders contextRef="Shareholder_2_D20250401">Another Holder LLP</test:NameOfTheShareholders>
+  <test:PermanentAccountNumber contextRef="Shareholder_2_D20250401">ABCDE1234F</test:PermanentAccountNumber>
+  <test:NumberOfFullyPaidUpEquityShares contextRef="Shareholder_2_D20250401">210000</test:NumberOfFullyPaidUpEquityShares>
+  <test:ShareholdingAsAPercentageOfTotalNumberOfShares contextRef="Shareholder_2_D20250401">1.05</test:ShareholdingAsAPercentageOfTotalNumberOfShares>
+</xbrl>
