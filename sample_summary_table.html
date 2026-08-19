@@ -1,0 +1,33 @@
+<!-- Synthetic "Table I - Summary Statement" fixture. Structurally modelled on
+     a real filing's layout (IndiaMART InterMESH Ltd SHP, table headers and
+     row shape - see: https://investor.indiamart.com/main-shareholding-30-sep-2023
+     and https://investor.indiamart.com/ir_download/PPN_Corp_Announcements/IndiaMART_SHP_Mar_Q4_FY-2024-25.pdf),
+     but the category label TEXT reuses the exact vocabulary confirmed
+     against the real ADF Foods fixture in sample_filing.html
+     ("Promoter & Promoter Group-Indian", "Public-Institution (Domestic)",
+     "Public-Institution (Foreign)", "Public-Non-Institution"). Numbers are
+     made up. This proves the grouping/summing/double-count-guard mechanism
+     works - it does NOT confirm NSE renders Table I with exactly these
+     column headers. Validate against a real download before trusting. -->
+<html><body>
+<table>
+<tr>
+<th>Category</th><th>Category of shareholder</th><th>Number of shareholders</th>
+<th>No. of fully paid-up equity shares held</th><th>Total nos. of shares held</th>
+<th>Shareholding as a % of total no. of shares</th>
+</tr>
+<tr><td>(A)</td><td>Promoter &amp; Promoter Group-Indian : Individuals/HUF</td><td>2</td><td>4000000</td><td>4000000</td><td>36.500</td></tr>
+<tr><td>(A)</td><td>Total Shareholding of Promoter and Promoter Group (A)</td><td>2</td><td>4000000</td><td>4000000</td><td>36.500</td></tr>
+<tr><td>(B)(1)(a)</td><td>Public-Institution (Domestic) : Mutual Funds/UTI</td><td>5</td><td>800000</td><td>800000</td><td>7.300</td></tr>
+<tr><td>(B)(1)(b)</td><td>Public-Institution (Domestic) : Insurance Companies</td><td>3</td><td>500000</td><td>500000</td><td>4.560</td></tr>
+<tr><td>(B)(1)(c)</td><td>Public-Institution (Foreign) : Foreign Portfolio Investor Category I</td><td>12</td><td>2100000</td><td>2100000</td><td>19.170</td></tr>
+<tr><td>(B)(1)</td><td>Sub-Total Institutions (B)(1)</td><td>20</td><td>3400000</td><td>3400000</td><td>31.030</td></tr>
+<tr><td>(B)(2)(a)</td><td>Public-Non-Institution : Bodies Corporate</td><td>140</td><td>900000</td><td>900000</td><td>8.210</td></tr>
+<tr><td>(B)(2)(b)</td><td>Public-Non-Institution : Individuals</td><td>18000</td><td>750000</td><td>750000</td><td>6.840</td></tr>
+<tr><td>(B)(2)</td><td>Sub-Total Non-Institutions (B)(2)</td><td>18140</td><td>1650000</td><td>1650000</td><td>15.050</td></tr>
+<tr><td>(B)</td><td>Total Public Shareholding (B)</td><td>18160</td><td>5050000</td><td>5050000</td><td>46.080</td></tr>
+<tr><td>(C1)</td><td>Non Promoter-Non Public : Custodian/DR Holder</td><td>1</td><td>900000</td><td>900000</td><td>8.210</td></tr>
+<tr><td>(C2)</td><td>Non Promoter-Non Public : Employee Benefit Trust</td><td>1</td><td>1000000</td><td>1000000</td><td>9.130</td></tr>
+<tr><td></td><td>GRAND TOTAL</td><td>18164</td><td>10950000</td><td>10950000</td><td>100.000</td></tr>
+</table>
+</body></html>
