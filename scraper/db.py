@@ -67,7 +67,7 @@ def has_processed_quarter(db: Client, symbol: str, quarter_end: str) -> bool:
     return len(res.data) > 0
 
 
-
+def upsert_holding(db: Client, row: dict) -> None:
     """
     row keys: symbol, company, entity, investor, watchlist_id, category,
     pct, shares, prev_pct, quarter_end, status, source_url
