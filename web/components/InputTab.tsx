@@ -10,6 +10,8 @@ export default function InputTab() {
   const [newInvestor, setNewInvestor] = useState("");
   const [newEntity, setNewEntity] = useState("");
   const [loading, setLoading] = useState(true);
+  const [importing, setImporting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function loadAll() {
@@ -31,12 +33,21 @@ export default function InputTab() {
     const investor = newInvestor.trim();
     const entity = newEntity.trim();
     if (!investor || !entity) return;
+    setFormError(null);
     const { data, error } = await supabase
       .from("sht_watchlist_entities")
       .insert({ investor, entity })
       .select()
       .single();
-    if (!error && data) {
+    if (error) {
+      setFormError(
+        error.code === "23505"
+          ? `"${investor}" via "${entity}" is already on your watchlist.`
+          : `Could not add row: ${error.message}`
+      );
+      return;
+    }
+    if (data) {
       setWatchlist((w) => [...w, data as WatchlistRow]);
       setNewInvestor("");
       setNewEntity("");
@@ -56,31 +67,80 @@ export default function InputTab() {
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const buf = await file.arrayBuffer();
-    const wb = XLSX.read(buf, { type: "array" });
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet);
+    setFormError(null);
+    setImporting(true);
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array" });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet);
 
-    const parsed = rows
-      .map((r) => {
-        const keys = Object.keys(r);
-        const invKey = keys.find((k) => /invest/i.test(k)) ?? keys[0];
-        const entKey = keys.find((k) => /entit/i.test(k)) ?? keys[1];
-        return {
-          investor: String(r[invKey] ?? "").trim(),
-          entity: entKey ? String(r[entKey] ?? "").trim() : "",
-        };
-      })
-      .filter((r) => r.investor && r.entity);
+      const parsed = rows
+        .map((r) => {
+          const keys = Object.keys(r);
+          const invKey = keys.find((k) => /invest/i.test(k)) ?? keys[0];
+          const entKey = keys.find((k) => /entit/i.test(k)) ?? keys[1];
+          return {
+            investor: String(r[invKey] ?? "").trim(),
+            entity: entKey ? String(r[entKey] ?? "").trim() : "",
+          };
+        })
+        .filter((r) => r.investor && r.entity);
 
-    if (parsed.length === 0) return;
+      if (parsed.length === 0) {
+        setFormError(
+          rows.length === 0
+            ? "That file has no rows."
+            : `Read ${rows.length} row(s) but none had both an investor and an entity value. Check the header row has columns matching "investor" and "entity" (case doesn't matter).`
+        );
+        return;
+      }
 
-    // Replaces the whole list, same behaviour as the demo: re-upload to
-    // fully replace, rather than merge, so stale rows don't linger.
-    await supabase.from("sht_watchlist_entities").delete().neq("id", 0);
-    const { data } = await supabase.from("sht_watchlist_entities").insert(parsed).select();
-    if (data) setWatchlist(data as WatchlistRow[]);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+      // De-dupe exact investor+entity pairs within the file itself - the
+      // table has a unique constraint on (investor, entity), so duplicate
+      // rows in the source file would otherwise abort the whole write.
+      const seen = new Set<string>();
+      const deduped = parsed.filter((r) => {
+        const k = `${r.investor.toLowerCase()}|${r.entity.toLowerCase()}`;
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
+
+      // Upsert (not delete-then-insert): rows unchanged from before just
+      // get re-affirmed, so we never touch the table until we know the
+      // new list is good. Old rows that are no longer in the file get
+      // removed in a second step, once we have the confirmed keep-list.
+      const { data: kept, error: upsertError } = await supabase
+        .from("sht_watchlist_entities")
+        .upsert(deduped, { onConflict: "investor,entity" })
+        .select();
+
+      if (upsertError) {
+        setFormError(`Import failed, your existing watchlist was left untouched: ${upsertError.message}`);
+        return;
+      }
+
+      const keepIds = (kept ?? []).map((r) => r.id);
+      if (keepIds.length > 0) {
+        const { error: deleteError } = await supabase
+          .from("sht_watchlist_entities")
+          .delete()
+          .not("id", "in", `(${keepIds.join(",")})`);
+        if (deleteError) {
+          setFormError(
+            `Imported ${keepIds.length} row(s), but couldn't clear rows that were removed from the file: ${deleteError.message}`
+          );
+        }
+      }
+
+      await loadAll();
+    } catch (err) {
+      setFormError(err instanceof Error ? `Could not read that file: ${err.message}` : "Could not read that file.");
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   }
 
   function exportXlsx() {
@@ -144,10 +204,16 @@ export default function InputTab() {
           Columns "investor" and "entity", one row per entity. Uploading replaces the current list.
         </p>
         <label className="drop">
-          <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleFile} />
-          Click to choose an .xlsx or .csv file
+          <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleFile} disabled={importing} />
+          {importing ? "Importing…" : "Click to choose an .xlsx or .csv file"}
         </label>
       </div>
+
+      {formError && (
+        <div className="card" style={{ borderColor: "#c0392b" }}>
+          <p className="hint" style={{ color: "#c0392b" }}>{formError}</p>
+        </div>
+      )}
 
       <div className="card">
         <h2>Your watchlist</h2>
@@ -256,3 +322,4 @@ export default function InputTab() {
     </div>
   );
 }
+
