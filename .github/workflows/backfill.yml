@@ -1,0 +1,39 @@
+name: Backfill investor history
+
+# Manual trigger only - NOT on a schedule. This checks the last N quarters
+# per symbol (not just the latest) across the full symbol universe, which
+# is proportionally more expensive than the daily scan (see scrape.yml).
+# It's still safe to re-run or run repeatedly: run.py skips any
+# symbol+quarter pair it's already ingested (via has_processed_quarter()
+# in db.py, checked against sht_holdings directly - no separate tracking
+# table needed), so a partial or repeated run just fills in what's
+# missing rather than redoing everything.
+on:
+  workflow_dispatch:
+    inputs:
+      quarters:
+        description: "Quarters to check per symbol, including the current one (4 = current + 3 prior)"
+        required: false
+        default: "4"
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350 # GitHub Actions caps a single job at 6h regardless
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        working-directory: scraper
+        run: pip install -r requirements.txt
+
+      - name: Run backfill
+        working-directory: scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python run.py --quarters ${{ github.event.inputs.quarters }}
