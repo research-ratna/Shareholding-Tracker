@@ -12,6 +12,7 @@ export default function InputTab() {
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [importInfo, setImportInfo] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function loadAll() {
@@ -68,30 +69,49 @@ export default function InputTab() {
     const file = e.target.files?.[0];
     if (!file) return;
     setFormError(null);
+    setImportInfo(null);
     setImporting(true);
     try {
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(buf, { type: "array" });
       const sheet = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet);
+      // defval is essential: without it, SheetJS omits the key entirely for
+      // any blank cell, so a row with a blank "entity" cell has no
+      // "entity" property at all - Object.keys() comes back shorter for
+      // that one row than for a fully-filled row. Detecting columns
+      // per-row off that shifting key list silently grabs the wrong
+      // column (or drops the row) the moment any cell above the entity
+      // column is blank. defval:"" guarantees every row has every header
+      // key, so the row shape is always consistent.
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
 
-      const parsed = rows
-        .map((r) => {
-          const keys = Object.keys(r);
-          const invKey = keys.find((k) => /invest/i.test(k)) ?? keys[0];
-          const entKey = keys.find((k) => /entit/i.test(k)) ?? keys[1];
-          return {
-            investor: String(r[invKey] ?? "").trim(),
-            entity: entKey ? String(r[entKey] ?? "").trim() : "",
-          };
-        })
-        .filter((r) => r.investor && r.entity);
+      if (rows.length === 0) {
+        setFormError("That file has no rows.");
+        return;
+      }
+
+      // Detect columns once, from the full header set - not per row.
+      const headerKeys = Object.keys(rows[0]);
+      const invKey = headerKeys.find((k) => /invest/i.test(k)) ?? headerKeys[0];
+      const entKey = headerKeys.find((k) => /entit/i.test(k)) ?? headerKeys[1];
+
+      if (!entKey) {
+        setFormError(
+          `Found an "investor" column ("${invKey}") but no second column to use as "entity". This tracker needs one row per entity (the specific fund/vehicle an investor holds through) - add a column named "entity" and re-upload. Same investor name can repeat across multiple rows if they use several entities.`
+        );
+        return;
+      }
+
+      const withValues = rows.map((r) => ({
+        investor: String(r[invKey] ?? "").trim(),
+        entity: String(r[entKey] ?? "").trim(),
+      }));
+      const parsed = withValues.filter((r) => r.investor && r.entity);
+      const skippedCount = withValues.length - parsed.length;
 
       if (parsed.length === 0) {
         setFormError(
-          rows.length === 0
-            ? "That file has no rows."
-            : `Read ${rows.length} row(s) but none had both an investor and an entity value. Check the header row has columns matching "investor" and "entity" (case doesn't matter).`
+          `Read ${rows.length} row(s), using "${invKey}" as investor and "${entKey}" as entity, but none had both values filled in. Check that every row actually has a value in the "${entKey}" column.`
         );
         return;
       }
@@ -106,6 +126,7 @@ export default function InputTab() {
         seen.add(k);
         return true;
       });
+      const dupeCount = parsed.length - deduped.length;
 
       // Upsert (not delete-then-insert): rows unchanged from before just
       // get re-affirmed, so we never touch the table until we know the
@@ -131,8 +152,22 @@ export default function InputTab() {
           setFormError(
             `Imported ${keepIds.length} row(s), but couldn't clear rows that were removed from the file: ${deleteError.message}`
           );
+          return;
         }
       }
+
+      const notes: string[] = [];
+      if (skippedCount > 0) {
+        notes.push(
+          `skipped ${skippedCount} row(s) missing an investor or entity value in the "${invKey}"/"${entKey}" columns`
+        );
+      }
+      if (dupeCount > 0) {
+        notes.push(`merged ${dupeCount} duplicate investor+entity pair(s) within the file`);
+      }
+      setImportInfo(
+        `Imported ${keepIds.length} row(s) from ${rows.length} read.` + (notes.length ? ` (${notes.join("; ")}.)` : "")
+      );
 
       await loadAll();
     } catch (err) {
@@ -212,6 +247,12 @@ export default function InputTab() {
       {formError && (
         <div className="card" style={{ borderColor: "#c0392b" }}>
           <p className="hint" style={{ color: "#c0392b" }}>{formError}</p>
+        </div>
+      )}
+
+      {importInfo && (
+        <div className="card" style={{ borderColor: "#2e7d32" }}>
+          <p className="hint" style={{ color: "#2e7d32" }}>{importInfo}</p>
         </div>
       )}
 
@@ -322,4 +363,5 @@ export default function InputTab() {
     </div>
   );
 }
+
 
