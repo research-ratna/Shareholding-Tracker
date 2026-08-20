@@ -105,6 +105,40 @@ def iter_latest_shareholding_filings(nse: NSE, symbols: list[str]) -> Iterator[d
         time.sleep(REQUEST_DELAY_SECONDS)
 
 
+def iter_shareholding_filings(nse: NSE, symbols: list[str], quarters: int = 1) -> Iterator[dict]:
+    """
+    For each symbol, yield up to `quarters` of its most recent quarterly
+    filing records - .shareholding() already returns them latest-first, so
+    records[:quarters] is simply "the last N quarters, including current".
+
+    With quarters=1 this yields exactly the same records, in the same
+    order, as iter_latest_shareholding_filings() above - used there isn't
+    duplicated, this is purely additive for the bounded backfill path (see
+    --quarters in run.py / backfill.yml), so the existing daily scrape is
+    untouched.
+
+    Note: unlike the daily path, a symbol can now yield multiple records,
+    so stats counters downstream reflect symbol-quarter attempts rather
+    than distinct symbols once quarters > 1.
+    """
+    for symbol in symbols:
+        try:
+            records = nse.shareholding(symbol)
+        except Exception as e:  # noqa: BLE001 - deliberately broad, this loops 2000x
+            log.warning("shareholding() failed for %s: %s", symbol, e)
+            time.sleep(REQUEST_DELAY_SECONDS)
+            continue
+
+        if not records:
+            time.sleep(REQUEST_DELAY_SECONDS)
+            continue
+
+        for record in records[:quarters]:
+            record["symbol"] = symbol
+            yield record
+        time.sleep(REQUEST_DELAY_SECONDS)
+
+
 def download_filing(nse: NSE, xbrl_url: str, folder: Path) -> Path:
     """Download one XBRL filing using the library's authenticated session."""
     return nse.download_document(xbrl_url, folder=folder)
