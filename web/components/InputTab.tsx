@@ -91,9 +91,19 @@ export default function InputTab() {
       }
 
       // Detect columns once, from the full header set - not per row.
+      // "invest" is matched first since it's the more distinctive keyword;
+      // "entit" is matched next, explicitly excluding whatever was already
+      // claimed by invKey. If neither regex matches a header (e.g. your
+      // columns are labelled "Directorship/Family" and "Investor" rather
+      // than "entity" and "investor"), we fall back to "the other column"
+      // - never to a fixed position, which could re-select the same
+      // column invKey already claimed and silently merge every row's
+      // investor and entity into one value.
       const headerKeys = Object.keys(rows[0]);
       const invKey = headerKeys.find((k) => /invest/i.test(k)) ?? headerKeys[0];
-      const entKey = headerKeys.find((k) => /entit/i.test(k)) ?? headerKeys[1];
+      const entKey =
+        headerKeys.find((k) => /entit/i.test(k) && k !== invKey) ??
+        headerKeys.find((k) => k !== invKey);
 
       if (!entKey) {
         setFormError(
