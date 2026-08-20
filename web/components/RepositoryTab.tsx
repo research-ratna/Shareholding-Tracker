@@ -89,6 +89,22 @@ export default function RepositoryTab() {
         grouped into a combined total wherever one investor holds a company through more than one entity.
       </div>
       <div className="card">
+        <h2>Backfill past quarters</h2>
+        <p className="hint">
+          The daily run only checks the current quarter. To also pick up the last 4 quarters (current +
+          3 prior) — useful right after adding new entities to your watchlist — run the backfill workflow
+          on GitHub. It can take a while across the full symbol universe; check the Actions tab for progress.
+        </p>
+        <a
+          className="btn primary"
+          href="https://github.com/research-ratna/Shareholding-Tracker/actions/workflows/backfill.yml"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Open backfill workflow on GitHub ↗
+        </a>
+      </div>
+      <div className="card">
         <div className="filters">
           <input
             type="text"
@@ -190,3 +206,4 @@ function EntityRow({ r, sub }: { r: HoldingRow; sub: boolean }) {
     </tr>
   );
 }
+
