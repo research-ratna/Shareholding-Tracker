@@ -1,14 +1,18 @@
 """
 Entry point for the quarterly scrape. Run as:
 
-    python run.py
+    python run.py                  # daily mode: current quarter only
+    python run.py --quarters 4     # backfill mode: current + 3 prior
+                                    # quarters per symbol (see backfill.yml)
 
 Requires environment variables SUPABASE_URL and SUPABASE_SERVICE_KEY
 (see .github/workflows/scrape.yml for how these get set from GitHub
 Secrets).
 
-What this does, per symbol:
-  1. Ask NSE for the latest quarterly shareholding filing (cheap call).
+What this does, per symbol, per quarter (1 quarter unless --quarters is
+passed):
+  1. Ask NSE for the N most recent quarterly shareholding filings (cheap
+     call - already returns multiple quarters per symbol in one request).
   2. If we've already ingested that exact quarter for this symbol, skip
      the expensive download+parse and move on.
   3. Otherwise download the filing and parse out every named holder row.
@@ -18,6 +22,7 @@ What this does, per symbol:
        - no match     -> ignore (not someone you're tracking)
 """
 
+import argparse
 import logging
 import sys
 from datetime import datetime
@@ -36,18 +41,36 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 log = logging.getLogger("run")
 
 
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser()
+    p.add_argument(
+        "--quarters",
+        type=int,
+        default=1,
+        help=(
+            "How many of each symbol's most recent quarterly filings to check, "
+            "including the current one. Default 1 (current quarter only - what "
+            "the daily schedule uses). Pass 4 to also pick up the 3 prior "
+            "quarters for entities newly added to the watchlist."
+        ),
+    )
+    return p.parse_args()
+
+
 def normalise_quarter_end(raw_date: str) -> str:
     """NSE dates come as e.g. '31-DEC-2025' - convert to ISO for Postgres."""
     return datetime.strptime(raw_date, "%d-%b-%Y").date().isoformat()
 
 
 def main() -> None:
+    args = parse_args()
     supa = db.get_client()
     watchlist = db.load_watchlist(supa)
     if not watchlist:
         log.error("watchlist_entities is empty - nothing to match against. Add entities first.")
         sys.exit(1)
     log.info("Loaded %d watchlist entities across %d investors", len(watchlist), len({w.investor for w in watchlist}))
+    log.info("Fetching up to %d quarter(s) per symbol", args.quarters)
 
     stats = {"symbols_total": 0, "symbols_ok": 0, "symbols_failed": 0, "new_holdings": 0, "review_added": 0}
 
@@ -56,7 +79,7 @@ def main() -> None:
         stats["symbols_total"] = len(symbols)
         log.info("Scanning %d symbols", len(symbols))
 
-        for record in nse_client.iter_latest_shareholding_filings(nse, symbols):
+        for record in nse_client.iter_shareholding_filings(nse, symbols, quarters=args.quarters):
             symbol = record["symbol"]
             xbrl_url = record.get("xbrl")
             raw_date = record.get("date")
@@ -133,7 +156,12 @@ def main() -> None:
 
             stats["symbols_ok"] += 1
 
-    db.log_run(supa, run_started=datetime.utcnow().isoformat(), **stats)
+    db.log_run(
+        supa,
+        run_started=datetime.utcnow().isoformat(),
+        notes=f"quarters={args.quarters}" if args.quarters != 1 else None,
+        **stats,
+    )
     log.info("Run complete: %s", stats)
 
 
